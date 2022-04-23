@@ -90,6 +90,17 @@ Parsing is fairly quick, and runs in linear time, though the parser does cons:
 
 ```lisp
 CL-USER> (time (dotimes (c 100000)
+                 (email-parse:parse "simple@example.com")))
+Evaluation took:
+  0.152 seconds of real time
+  0.151840 seconds of total run time (0.147935 user, 0.003905 system)
+  100.00% CPU
+  516,269,668 processor cycles
+  113,608,576 bytes consed
+
+NIL
+
+CL-USER> (time (dotimes (c 100000)
                  (email-parse:parse-octets
                   (trivial-us-ascii:ascii-string-code
                    '(simple-array (unsigned-byte 8) (*))
