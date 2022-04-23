@@ -116,6 +116,6 @@ Patches are welcome.
 
 ## License
 
-URI Parse is licensed under the two-clause BSD license.
+Email Parse is licensed under the two-clause BSD license.
 
 See LICENSE.
