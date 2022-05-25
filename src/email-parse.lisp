@@ -81,9 +81,13 @@
         (clear-captured)))))
 
 (defun parse (str &key plist)
-  (let ((octets (ascii-string-code '(simple-array (unsigned-byte 8) (*)) str)))
-    (multiple-value-bind (local-part domain-or-address-literal)
-        (parse-octets octets 0 (length octets))
-      (if plist
-          (plist local-part domain-or-address-literal)
-          (values local-part domain-or-address-literal)))))
+  (let ((octets
+          (handler-case
+              (ascii-string-code '(simple-array (unsigned-byte 8) (*)) str)
+            (type-error ()))))
+    (when octets
+      (multiple-value-bind (local-part domain-or-address-literal)
+          (parse-octets octets 0 (length octets))
+        (if plist
+            (plist local-part domain-or-address-literal)
+            (values local-part domain-or-address-literal))))))
