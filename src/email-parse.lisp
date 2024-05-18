@@ -65,6 +65,7 @@
                                         domain-or-address-literal-upper
                                         (alternatives r-domain
                                                       r-address-literal)))))
+              (declare (inline r-parse-mailbox))
               (when (<= (length octets) *mailbox-max-length*)
                 (let ((parsed (r-parse-mailbox octets lower upper)))
                   (when (and parsed (= parsed (length octets)))
