@@ -24,70 +24,78 @@
 
 ;; ------------------------------------------------------------------------------
 
-(declaim (type matched *local-part-lower*))
-(declaim (type matched *local-part-upper*))
-(declaim (type matched *domain-or-address-literal-lower*))
-(declaim (type matched *domain-or-address-literal-upper*))
-
-(defparameter *local-part-lower* nil)
-(defparameter *local-part-upper* nil)
-(defparameter *domain-or-address-literal-lower* nil)
-(defparameter *domain-or-address-literal-upper* nil)
-
-(defun clear-captured ()
-  (setf *local-part-lower* nil
-        *local-part-upper* nil
-        *domain-or-address-literal-lower* nil
-        *domain-or-address-literal-upper* nil))
-
-;; ------------------------------------------------------------------------------
-
-(defrule r-parse-mailbox
-    (concatenation (capture *local-part-lower*
-                            *local-part-upper*
-                            r-local-part)
-                   (terminal +#\@+)
-                   (capture *domain-or-address-literal-lower*
-                            *domain-or-address-literal-upper*
-                            (alternatives r-domain
-                                          r-address-literal))))
+(declaim (inline plist))
+#+:sbcl (declaim (sb-ext:maybe-inline parse-octets))
 
 (defun plist (local-part domain-or-address-literal)
+  (declare (optimize (speed 3) (debug 0) (safety 0)))
+  (declare (type (or (simple-array (unsigned-byte 8) (*))
+                     string
+                     null)
+                 local-part
+                 domain-or-address-literal))
   (when (or local-part domain-or-address-literal)
     (list :local-part local-part
           :domain domain-or-address-literal)))
 
 (defun parse-octets (octets lower upper &key (result-type 'string) plist)
-  (when (<= (length octets) *mailbox-max-length*)
-    (let ((parsed (r-parse-mailbox octets lower upper)))
-      (multiple-value-prog1
-          (when (and parsed (= parsed (length octets)))
-            (let ((local-part (subseq octets
-                                      *local-part-lower*
-                                      *local-part-upper*))
-                  (domain-or-address-literal (subseq octets
-                                                     *domain-or-address-literal-lower*
-                                                     *domain-or-address-literal-upper*)))
-              (when (<= (length local-part) *local-part-max-length*)
-                (case result-type
-                  (string (let ((lp-str (ascii-code-string local-part))
-                                (doal-str (ascii-code-string domain-or-address-literal)))
-                            (if plist
-                                (plist lp-str doal-str)
-                                (values lp-str doal-str))))
-                  (otherwise (if plist
-                                 (plist local-part domain-or-address-literal)
-                                 (values local-part domain-or-address-literal)))))))
-        (clear-captured)))))
+  (declare (optimize (speed 3) (debug 0) (safety 0)))
+  (declare (type (or (simple-array (unsigned-byte 8) (*))
+                     null)
+                 octets)
+           (type fixnum lower)
+           (type fixnum upper)
+           (type (or symbol null) result-type)
+           (type boolean plist))
+  (let ((local-part-lower nil)
+        (local-part-upper nil)
+        (domain-or-address-literal-lower nil)
+        (domain-or-address-literal-upper nil))
+    (declare (type matched
+                   local-part-lower
+                   local-part-upper
+                   domain-or-address-literal-lower
+                   domain-or-address-literal-upper))
+    (letrules ((r-parse-mailbox
+                (concatenation (capture local-part-lower
+                                        local-part-upper
+                                        r-local-part)
+                               (terminal +#\@+)
+                               (capture domain-or-address-literal-lower
+                                        domain-or-address-literal-upper
+                                        (alternatives r-domain
+                                                      r-address-literal)))))
+              (when (<= (length octets) *mailbox-max-length*)
+                (let ((parsed (r-parse-mailbox octets lower upper)))
+                  (when (and parsed (= parsed (length octets)))
+                    (let ((local-part (subseq octets
+                                              local-part-lower
+                                              local-part-upper))
+                          (domain-or-address-literal (subseq octets
+                                                             domain-or-address-literal-lower
+                                                             domain-or-address-literal-upper)))
+                      (when (<= (length local-part) *local-part-max-length*)
+                        (case result-type
+                          (string (let ((lp-str (ascii-code-string local-part))
+                                        (doal-str (ascii-code-string domain-or-address-literal)))
+                                    (if plist
+                                        (plist lp-str doal-str)
+                                        (values lp-str doal-str))))
+                          (otherwise (if plist
+                                         (plist local-part domain-or-address-literal)
+                                         (values local-part domain-or-address-literal))))))))))))
 
 (defun parse (str &key plist)
-  (let ((octets
-          (handler-case
-              (ascii-string-code '(simple-array (unsigned-byte 8) (*)) str)
-            (type-error ()))))
-    (when octets
-      (multiple-value-bind (local-part domain-or-address-literal)
-          (parse-octets octets 0 (length octets))
-        (if plist
-            (plist local-part domain-or-address-literal)
-            (values local-part domain-or-address-literal))))))
+  (declare (optimize (speed 3) (debug 0) (safety 0)))
+  (declare (type string str)
+           (type boolean plist))
+  #+:sbcl (declare (inline parse-octets))
+  (handler-case
+      (let ((octets (ascii-string-code '(simple-array (unsigned-byte 8) (*)) str)))
+        (declare (type (simple-array (unsigned-byte 8) (*)) octets))
+        (multiple-value-bind (local-part domain-or-address-literal)
+            (parse-octets octets 0 (length octets))
+          (if plist
+              (plist local-part domain-or-address-literal)
+              (values local-part domain-or-address-literal))))
+    (type-error ())))
